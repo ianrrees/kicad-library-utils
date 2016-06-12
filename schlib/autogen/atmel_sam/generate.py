@@ -1,5 +1,9 @@
 from __future__ import print_function
 
+from math import ceil # For rounding
+from datetime import datetime
+import re
+
 def ufbgaPinGenerator(rows, cols):
     for row, col in zip(range(rows), range(cols)):
         yield "%s%d" % (chr(ord("A" + row)), 1 + col)
@@ -50,7 +54,6 @@ def expandPortPin(partNumber, pin):
     "Takes a partNumber and pin and returns list of strings with port functions"
 
     series = partNumber[:6]
-
     if not series == "SAMD21":
         raise Exception("getNumPins() called on an unknown series")
 
@@ -112,18 +115,17 @@ def expandPortPin(partNumber, pin):
     return functionDict[pin]
 
 def getPinout(partNumber):
-    """Returns a dict of pin to description mappings.
+    """Returns a dict of pin to brief description mappings.
 
     Keys are strings, because some packages use pin numbers, and others use
     coordinates.  Descriptions are terse, and are meant to be expanded via
-    FUNCTION_TBD.
+    expandPortPin().
     """
-#TODO: Fill in FUNCTION_TBD above
 
     pinouts = { "SAMD21E" :
-                    None,
+                    None, # TODO: Finish
                 "SAMD21G" :
-                    None,
+                    None, # TODO: Finish
                 "SAMD21J" :
                     {
                         "1" : "PA00",
@@ -177,7 +179,7 @@ def getPinout(partNumber):
                         "49" : "PB22",
                         "50" : "PB23",
                         "51" : "PA27",
-                        "52" : "RESET", #TODO: Active low mark?
+                        "52" : "~RESET~",
                         "53" : "PA28",
                         "54" : "GND",
                         "55" : "VDDCORE",
@@ -192,6 +194,7 @@ def getPinout(partNumber):
                         "64" : "PB03",
                     }
               }
+    return pinouts[partNumber[:7]]
 
 def knownSamParts():
     "Generator yields all Atmel SAM parts we can generate symbols for"
@@ -230,7 +233,169 @@ def knownSamParts():
                                 for carrier in carriers[series]:
                                     yield "SAM" + series + pinCount + flashSize + variant + "-" + package + grade + carrier
 
+def getPackage(partNumber):
+    "Returns package as a string, for partNumber"
+
+    series = partNumber[:6]
+    if not series == "SAMD21":
+        raise Exception("getNumPins() called on an unknown series")
+
+    pinCode, packageCode = partNumber[6], partNumber[11]
+
+    numPinsStr = {
+                   "E" : "32",
+                   "G" : "48",
+                   "J" : "64",
+                 } [pinCode]
+    
+    packageName = {
+                    "A" : "TQFP",
+                    "M" : "QFN",
+                    "U" : "WLCSP",
+                    "C" : "UFBGA",
+                  } [packageCode]
+
+    return packageName + numPinsStr
+
+def outputLibSymbol(partNumber, aliases=None):
+    "Generates the .lib description for partNumber"
+
+    # From Kicad Library Conventions
+    # https://github.com/KiCad/kicad-library/wiki/Kicad-Library-Convention
+    pinLength = 100 
+    pinTextSize = 40
+    fieldTextSize = 50
+    grid = 100
+
+    # Comment header
+    out =  "#\n"
+    out += "# " + partNumber + "\n"
+    out += "# Automatically generated " + str(datetime.now()) + "\n"
+    out += "#\n"
+
+    leftPins, rightPins = arrangePins(partNumber)
+
+    # Find the longest text between left and right
+    maxLenLeft, maxLenRight = 0, 0
+    for p in leftPins:
+        if p is not None:
+            maxLenLeft = max(maxLenLeft, len(p[1]))
+    for p in rightPins:
+        maxLenRight = max(maxLenRight, len(p[1]))
+
+    requiredWidth = (maxLenLeft + maxLenRight) * pinTextSize + 2 * pinLength
+
+    # Figure out width and height to put all the pins on grid intersections
+    width = 2 * grid * ceil(requiredWidth / (2 * grid))
+
+    numPinsTall = max(len(leftPins), len(rightPins))
+    height = 2 * grid * ceil(grid * numPinsTall / (2 * grid))
+
+    top = grid * ceil(height / (2 * grid) )
+
+    # Start the definition
+    # TODO: Unsure what the F and N are for - copied from existing library
+    out += "DEF " + partNumber + " U 0 40  Y Y 1 F N\n"
+
+    # Required fields
+    fieldTextY = top + fieldTextSize + grid
+    packageStr = getPackage(partNumber) 
+
+    #TODO: Unsure what the trailing Ns are for
+    out += 'F0 "U" %d %d 50 H V L CNN\n' % \
+           (-width / 2, fieldTextY)
+    out += 'F1 "' + partNumber + '" %d %d 50 H V C CNN\n' % \
+           (0, fieldTextY)
+    out += 'F2 "' + packageStr + '" %d %d 50 H V R CIN\n' % \
+           (width / 2, fieldTextY)
+    out += 'F3 "" 0 0 50 H V C CNN\n'
+
+    # Start drawing with the bounding box around the chip
+    boxBottom = top - grid * max(len(leftPins), len(rightPins))
+    out += "DRAW\n"
+    out += "S %d %d %d %d 0 1 10 f\n" % ( -width / 2 + pinLength, top + grid,
+                                          width / 2 - pinLength, boxBottom )
+
+    # ...and the pins!
+    row = 0
+    for p in leftPins:
+        xPos = -width / 2
+        yPos = top - row * grid
+
+        if p is None:   # Gap between groups of pins
+            row += 1
+            continue
+        elif "VDD" in p[1] or "GND" in p[1]:
+            pinType = "W" # Power in
+        elif "RESET" in p[1]:
+            pinType = "I" # Input
+        else:
+            pinType = "B" # Bidirectional
+
+        params= (p[1], p[0], xPos, yPos, pinLength, pinTextSize, pinTextSize, pinType)
+        out += "X %s %s %d %d %d R %d %d 1 1 %s\n" % params
+        row += 1
+
+    row = 0
+    for p in rightPins:
+        xPos = width / 2
+        yPos = top - row * grid
+
+        params = (p[1], p[0], xPos, yPos, pinLength, pinTextSize, pinTextSize)
+        out += "X %s %s %d %d %d L %d %d 1 1 B\n" % params
+        row += 1
+    out += "ENDDRAW\n"
+
+    out += "ENDDEF\n"
+
+    return out
+
+def arrangePins(partNumber):
+    "Make lists of (pin number, description) tuples for L and R of symbol"
+    pins = getPinout(partNumber)
+
+    # Build lists of (pin number, pin name) tuples for pins that go
+    # on the left or right of the symbol.
+    leftSide = []
+    rightSide = []
+
+    # Right side is IO, left is everything else (mainly power)
+    isPort = re.compile(r"P[A-Z][0-9]{2}")
+    for number in pins:
+        if isPort.match(pins[number]):
+            rightSide.append( (number, pins[number]) )
+        else:
+            leftSide.append( (number, pins[number]) )
+
+    # Sort left pins roughly by function; misc, power, ground
+    leftNotPower = []
+    leftPower = []
+    leftGround = []
+    for item in leftSide:
+        if "VDD" in item[1]:
+            leftPower.append(item)
+        elif "GND" in item[1]:
+            leftGround.append(item)
+        else:
+            leftNotPower.append(item)
+
+    leftSorted = sorted(leftNotPower, key = lambda x: x[1])
+    leftSorted += [None]    # Put a gap between groups
+    leftSorted += sorted(leftPower, key = lambda x: x[1])
+    leftSorted += [None]
+    leftSorted += sorted(leftGround, key = lambda x: x[1])
+
+    # Sort pins by port name (eg PA02, PA03...) rather than pin number
+    rightSide = sorted(rightSide, key = lambda x: x[1])
+    rightExpanded = []
+    for pin in rightSide:
+        # Eeschema can't handle spaces in pin names, so join with slashes.
+        expanded = "/".join(expandPortPin(partNumber, pin[1]) + [pin[1]])
+        rightExpanded.append( (pin[0], expanded) )
+
+    return leftSorted, rightExpanded
 
 if __name__ == "__main__":
-    for partNumber in knownSamParts():
-        print(partNumber)
+    print(outputLibSymbol("SAMD21J18A-MF"))
+#    for partNumber in knownSamParts():
+ #       print(partNumber)
