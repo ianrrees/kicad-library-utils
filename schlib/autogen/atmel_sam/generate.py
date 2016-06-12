@@ -4,52 +4,6 @@ from math import ceil # For rounding
 from datetime import datetime
 import re
 
-def ufbgaPinGenerator(rows, cols):
-    for row, col in zip(range(rows), range(cols)):
-        yield "%s%d" % (chr(ord("A" + row)), 1 + col)
-
-def wlcspPinGenerator(numPins):
-    if numPins == 45:
-        rows = 7
-        colsLong = 7 # number of pins in a long row, short rows have one less
-        startLong = False # is row A a long row?
-    else:
-        raise Exception("Don't know how to make %d pin WLCSP" % numPins)
-
-    for row in range(rows):
-        isLong = (row % 2 == 0) == startLong
-
-        # Bools upgrade to integers 0 and 1
-        cols = range(2 - isLong, colsLong * 2, 2)
-        for col in cols:
-            yield "%s%d" % (chr(ord('A') + row), col)
-
-def pinIterator(partNumber):
-    series = partNumber[:6]
-
-    if not series == "SAMD21":
-        raise Exception("getNumPins() called on an unknown series")
-
-    pinCode = partNumber[6]
-    packageCode = partNumber[11]
-
-    if series == "SAMD21":
-        if packageCode in ["A", "M"]: # TQFP or QFN
-           return {
-                  "E" : ("%d" % (p + 1) for p in range(32)),
-                  "G" : ("%d" % (p + 1) for p in range(48)),
-                  "J" : ("%d" % (p + 1) for p in range(64)),
-                  } [pinCode]
-        elif packageCode in ["U"]: # WLCSP
-            return {
-                  "E" : wlcspPinGenerator(35),
-                  "G" : wlcspPinGenerator(45),
-                   } [pinCode]
-        elif packageCode in ["C"]: # UFBGA
-            return {
-                  "J" : ufbgaPinGenerator(8, 8),
-                   } [pinCode]
-
 def expandPortPin(partNumber, pin):
     "Takes a partNumber and pin and returns list of strings with port functions"
 
