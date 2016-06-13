@@ -4,6 +4,203 @@ from math import ceil # For rounding
 from datetime import datetime
 import re
 
+class SamModel(object):
+    """Represents a particular Atmel SAM part number
+    
+    Provides methods to generate an Eeschema symbol for the part.
+    """
+    def __init__(self, partNumber):
+        series = partNumber[:6]
+        if not series == "SAMD21":
+            raise Exception("Don't know about series " + series)
+
+        self.partNumber = partNumber
+
+    def __str__(self):
+        return self.partNumber
+
+    def __repr__(self):
+        return "SamModel(\"" + self.partNumber + "\")"
+
+    def _arrangePins(self):
+        "Make lists of (pin number, description) tuples for L and R of symbol"
+
+        pins = getPinout(self.partNumber)
+    
+        # Build lists of (pin number, pin name) tuples for pins that go
+        # on the left or right of the symbol.
+        leftSide = []
+        rightSide = []
+    
+        # Right side is IO, left is everything else (mainly power)
+        isPort = re.compile(r"P[A-Z][0-9]{2}")
+        for number in pins:
+            if isPort.match(pins[number]):
+                rightSide.append( (number, pins[number]) )
+            else:
+                leftSide.append( (number, pins[number]) )
+    
+        # Sort left pins roughly by function; misc, power, ground
+        # TODO: Maybe another group for analog power pins?
+        leftNotPower = []
+        leftPower = []
+        leftGround = []
+        for item in leftSide:
+            if "VDD" in item[1]:
+                leftPower.append(item)
+            elif "GND" in item[1]:
+                leftGround.append(item)
+            else:
+                leftNotPower.append(item)
+    
+        leftSorted = sorted(leftNotPower, key = lambda x: x[1])
+        leftSorted += [None]    # Put a gap between groups
+        leftSorted += sorted(leftPower, key = lambda x: x[1])
+        leftSorted += [None]
+        leftSorted += sorted(leftGround, key = lambda x: x[1])
+    
+        # Sort pins by port name (eg PA02, PA03...) rather than pin number
+        rightSide = sorted(rightSide, key = lambda x: x[1])
+        rightExpanded = []
+        for pin in rightSide:
+            # Eeschema can't handle spaces in pin names, so join with slashes.
+            expanded = "/".join(expandPortPin(self.partNumber, pin[1]) + [pin[1]])
+            rightExpanded.append( (pin[0], expanded) )
+
+        return leftSorted, rightExpanded
+
+    def canAlias(self, other):
+        "Returns True iff self and other have same schematic symbols."
+
+        ourPn, otherPn = self.partNumber, other.partNumber
+
+        #               Flash Size           Temp Grade   Carrier
+        mask = ourPn[:7] + ".." + ourPn[9:12] + "."     +   "T?"
+
+        if re.search(mask, otherPn):
+            return True
+        else:
+            return False
+
+    def outputLibSymbol(self, aliases):
+        "Generates the .lib description as bytearray, refers to list aliases"
+    
+        # From Kicad Library Conventions
+        # https://github.com/KiCad/kicad-library/wiki/Kicad-Library-Convention
+        pinLength = 100 
+        pinTextSize = 40
+        fieldTextSize = 50
+        grid = 100
+    
+        # Comment header
+        out =  "#\n"
+        out += "# " + self.partNumber + "\n"
+        out += "# Automatically generated " + str(datetime.now()) + "\n"
+        out += "#\n"
+    
+        leftPins, rightPins = self._arrangePins()
+    
+        # Find the longest text between left and right
+        maxLenLeft, maxLenRight = 0, 0
+        for p in leftPins:
+            if p is not None:
+                maxLenLeft = max(maxLenLeft, len(p[1]))
+        for p in rightPins:
+            maxLenRight = max(maxLenRight, len(p[1]))
+    
+        requiredWidth = (maxLenLeft + maxLenRight) * pinTextSize + 2 * pinLength
+    
+        # Figure out width and height to put all the pins on grid intersections
+        width = 2 * grid * ceil(requiredWidth / (2 * grid))
+    
+        numPinsTall = max(len(leftPins), len(rightPins))
+        height = 2 * grid * ceil(grid * numPinsTall / (2 * grid))
+    
+        top = grid * ceil(height / (2 * grid) )
+    
+        # Start the definition
+        # TODO: Unsure what the F and N are for - copied from existing library
+        out += "DEF " + self.partNumber + " U 0 40  Y Y 1 F N\n"
+    
+        # Required fields
+        fieldTextY = top + fieldTextSize + grid
+        packageStr = getPackage(self.partNumber) 
+    
+        #TODO: Unsure what the trailing Ns are for
+        out += 'F0 "U" %d %d 50 H V L CNN\n' % \
+               (-width / 2, fieldTextY)
+        out += 'F1 "' + self.partNumber + '" %d %d 50 H V C CNN\n' % \
+               (0, fieldTextY)
+        out += 'F2 "' + packageStr + '" %d %d 50 H V R CIN\n' % \
+               (width / 2, fieldTextY)
+        out += 'F3 "" 0 0 50 H V C CNN\n'
+    
+        if len(aliases) > 0:
+            out += "ALIAS " + " ".join([al.partNumber for al in aliases]) + "\n"
+    
+        # Start drawing with the bounding box around the chip
+        boxBottom = top - grid * max(len(leftPins), len(rightPins))
+        out += "DRAW\n"
+        out += "S %d %d %d %d 0 1 10 f\n" % ( -width / 2 + pinLength, top + grid,
+                                              width / 2 - pinLength, boxBottom )
+    
+        # ...and the pins!
+        row = 0
+        for p in leftPins:
+            xPos = -width / 2
+            yPos = top - row * grid
+    
+            if p is None:     # Gap between groups of pins
+                row += 1
+                continue
+            elif "VDD" in p[1] or "GND" in p[1]:
+                pinType = "W" # Power in
+            elif "RESET" in p[1]:
+                pinType = "I" # Input
+            else:
+                pinType = "B" # Bidirectional
+    
+            params= (p[1], p[0], xPos, yPos, pinLength, pinTextSize, pinTextSize, pinType)
+            out += "X %s %s %d %d %d R %d %d 1 1 %s\n" % params
+            row += 1
+    
+        row = 0
+        for p in rightPins:
+            xPos = width / 2
+            yPos = top - row * grid
+    
+            params = (p[1], p[0], xPos, yPos, pinLength, pinTextSize, pinTextSize)
+            out += "X %s %s %d %d %d L %d %d 1 1 B\n" % params
+            row += 1
+        out += "ENDDRAW\n"
+    
+        out += "ENDDEF\n"
+    
+        return out.encode("UTF-8")
+    
+    def outputDcm(self):
+        "Returns section of an Eeschema .dcm file as UTF-8 encoded bytearray"
+
+        partNumber = self.partNumber
+
+        out = "#\n"
+        out += "$CMP " + partNumber + "\n"
+    
+        brief = [
+                getPackage(partNumber),
+                getFlashString(partNumber) + " Flash",
+                getRamString(partNumber) + " RAM",
+                getSpeedString(partNumber),
+                getArmFamilyString(partNumber),
+                getPackagingString(partNumber),
+                ]
+        out += "D " + ", ".join(brief) + "\n"
+        out += "K " + getOverviewString(partNumber) + "\n"
+        out += "F " + getDatasheetUrlString(partNumber) + "\n"
+        out += "$ENDCMP\n"
+
+        return out.encode("UTF-8")
+
 def expandPortPin(partNumber, pin):
     "Takes a partNumber and pin and returns list of strings with port functions"
 
@@ -136,7 +333,7 @@ def getPinout(partNumber):
                       "B3" : "PA02",
                       "B4" : "PA04",
                       "B5" : "PA07",
-                      # B6 is key
+                      # B6 is a key
                       "C1" : "VDDCORE",
                       "C2" : "VDDIN",
                       "C3" : "PA03",
@@ -398,27 +595,12 @@ def getPinout(partNumber):
               }
     return pinouts[briefPackage]
 
-def canAlias(partNumber1, partNumber2):
-    "Returns True iff partNumber1 and partNumber2 have same schematic symbols."
-
-    series1, series2 = partNumber1[:6], partNumber2[:6]
-    if series1 != "SAMD21" or series2 != "SAMD21":
-        raise Exception("canAlias() called on an unknown series")
-
-    #                     Flash Size                 Temp Grade   Carrier
-    mask = partNumber1[:7] + ".." + partNumber1[9:12] + "."     +   "T?"
-
-    if re.search(mask, partNumber2):
-        return True
-
-    return False
-
 def knownSamParts():
     "Returns a list of all Atmel SAM parts we can generate symbols for"
 
     # This is just copy-paste-regex'ed from the datasheet - tried the
     # algorithmic way, but exceptions started looking tedious.
-    out = [
+    partNumbers = [
             "SAMD21E15A-AU", "SAMD21E15A-AUT", 
             "SAMD21E15A-AF", "SAMD21E15A-AFT", 
             "SAMD21E15A-MU", "SAMD21E15A-MUT", 
@@ -500,7 +682,7 @@ def knownSamParts():
             "SAMD21J16B-CU", "SAMD21J16B-CUT",             
             ]
 
-    return out
+    return [SamModel(pn) for pn in partNumbers]
 
 def getPackage(partNumber):
     "Returns package as a string, for partNumber"
@@ -597,166 +779,6 @@ def getDatasheetUrlString(partNumber):
 
     return "http://www.atmel.com/images/atmel-42181-sam-d21_datasheet.pdf"
 
-def arrangePins(partNumber):
-    "Make lists of (pin number, description) tuples for L and R of symbol"
-    pins = getPinout(partNumber)
-
-    # Build lists of (pin number, pin name) tuples for pins that go
-    # on the left or right of the symbol.
-    leftSide = []
-    rightSide = []
-
-    # Right side is IO, left is everything else (mainly power)
-    isPort = re.compile(r"P[A-Z][0-9]{2}")
-    for number in pins:
-        if isPort.match(pins[number]):
-            rightSide.append( (number, pins[number]) )
-        else:
-            leftSide.append( (number, pins[number]) )
-
-    # Sort left pins roughly by function; misc, power, ground
-    leftNotPower = []
-    leftPower = []
-    leftGround = []
-    for item in leftSide:
-        if "VDD" in item[1]:
-            leftPower.append(item)
-        elif "GND" in item[1]:
-            leftGround.append(item)
-        else:
-            leftNotPower.append(item)
-
-    leftSorted = sorted(leftNotPower, key = lambda x: x[1])
-    leftSorted += [None]    # Put a gap between groups
-    leftSorted += sorted(leftPower, key = lambda x: x[1])
-    leftSorted += [None]
-    leftSorted += sorted(leftGround, key = lambda x: x[1])
-
-    # Sort pins by port name (eg PA02, PA03...) rather than pin number
-    rightSide = sorted(rightSide, key = lambda x: x[1])
-    rightExpanded = []
-    for pin in rightSide:
-        # Eeschema can't handle spaces in pin names, so join with slashes.
-        expanded = "/".join(expandPortPin(partNumber, pin[1]) + [pin[1]])
-        rightExpanded.append( (pin[0], expanded) )
-
-    return leftSorted, rightExpanded
-
-def outputLibSymbol(partNumber, aliases):
-    "Generates the .lib description for partNumber, with aliases"
-
-    # From Kicad Library Conventions
-    # https://github.com/KiCad/kicad-library/wiki/Kicad-Library-Convention
-    pinLength = 100 
-    pinTextSize = 40
-    fieldTextSize = 50
-    grid = 100
-
-    # Comment header
-    out =  "#\n"
-    out += "# " + partNumber + "\n"
-    out += "# Automatically generated " + str(datetime.now()) + "\n"
-    out += "#\n"
-
-    leftPins, rightPins = arrangePins(partNumber)
-
-    # Find the longest text between left and right
-    maxLenLeft, maxLenRight = 0, 0
-    for p in leftPins:
-        if p is not None:
-            maxLenLeft = max(maxLenLeft, len(p[1]))
-    for p in rightPins:
-        maxLenRight = max(maxLenRight, len(p[1]))
-
-    requiredWidth = (maxLenLeft + maxLenRight) * pinTextSize + 2 * pinLength
-
-    # Figure out width and height to put all the pins on grid intersections
-    width = 2 * grid * ceil(requiredWidth / (2 * grid))
-
-    numPinsTall = max(len(leftPins), len(rightPins))
-    height = 2 * grid * ceil(grid * numPinsTall / (2 * grid))
-
-    top = grid * ceil(height / (2 * grid) )
-
-    # Start the definition
-    # TODO: Unsure what the F and N are for - copied from existing library
-    out += "DEF " + partNumber + " U 0 40  Y Y 1 F N\n"
-
-    # Required fields
-    fieldTextY = top + fieldTextSize + grid
-    packageStr = getPackage(partNumber) 
-
-    #TODO: Unsure what the trailing Ns are for
-    out += 'F0 "U" %d %d 50 H V L CNN\n' % \
-           (-width / 2, fieldTextY)
-    out += 'F1 "' + partNumber + '" %d %d 50 H V C CNN\n' % \
-           (0, fieldTextY)
-    out += 'F2 "' + packageStr + '" %d %d 50 H V R CIN\n' % \
-           (width / 2, fieldTextY)
-    out += 'F3 "" 0 0 50 H V C CNN\n'
-
-    if len(aliases) > 0:
-        out += "ALIAS " + " ".join(aliases) + "\n"
-
-    # Start drawing with the bounding box around the chip
-    boxBottom = top - grid * max(len(leftPins), len(rightPins))
-    out += "DRAW\n"
-    out += "S %d %d %d %d 0 1 10 f\n" % ( -width / 2 + pinLength, top + grid,
-                                          width / 2 - pinLength, boxBottom )
-
-    # ...and the pins!
-    row = 0
-    for p in leftPins:
-        xPos = -width / 2
-        yPos = top - row * grid
-
-        if p is None:   # Gap between groups of pins
-            row += 1
-            continue
-        elif "VDD" in p[1] or "GND" in p[1]:
-            pinType = "W" # Power in
-        elif "RESET" in p[1]:
-            pinType = "I" # Input
-        else:
-            pinType = "B" # Bidirectional
-
-        params= (p[1], p[0], xPos, yPos, pinLength, pinTextSize, pinTextSize, pinType)
-        out += "X %s %s %d %d %d R %d %d 1 1 %s\n" % params
-        row += 1
-
-    row = 0
-    for p in rightPins:
-        xPos = width / 2
-        yPos = top - row * grid
-
-        params = (p[1], p[0], xPos, yPos, pinLength, pinTextSize, pinTextSize)
-        out += "X %s %s %d %d %d L %d %d 1 1 B\n" % params
-        row += 1
-    out += "ENDDRAW\n"
-
-    out += "ENDDEF\n"
-
-    return out
-
-def outputDcm(partNumber):
-    "Returns section of an Eeschema .dcm file for partNumber"
-    out = "#\n"
-    out += "$CMP " + partNumber + "\n"
-
-    brief = [
-            getPackage(partNumber),
-            getFlashString(partNumber) + " Flash",
-            getRamString(partNumber) + " RAM",
-            getSpeedString(partNumber),
-            getArmFamilyString(partNumber),
-            getPackagingString(partNumber),
-            ]
-    out += "D " + ", ".join(brief) + "\n"
-    out += "K " + getOverviewString(partNumber) + "\n"
-    out += "F " + getDatasheetUrlString(partNumber) + "\n"
-    out += "$ENDCMP\n"
-    return out
-
 def assembleAliases(allParts):
     "Constructs a list of lists, where members of each sublist are aliasable"
     outList = []
@@ -764,7 +786,7 @@ def assembleAliases(allParts):
     for newPart in allParts:
         aliased = False
         for possibleAlias in outList:
-            if canAlias(newPart, possibleAlias[0]):
+            if possibleAlias[0].canAlias(newPart):
                 possibleAlias.append(newPart)
                 aliased = True
                 break
@@ -782,9 +804,9 @@ if __name__ == "__main__":
 
     with open(baseName + ".lib", "wb") as outFile:
         for aliases in parts:
-            outFile.write( outputLibSymbol(aliases[0], aliases[1:]).encode() )
+            outFile.write( aliases[0].outputLibSymbol(aliases[1:]) )
 
     with open(baseName + ".dcm", "wb") as outFile:
         for aliases in parts:
             for part in aliases:
-                outFile.write( outputDcm(part).encode() )
+                outFile.write( part.outputDcm() )
