@@ -9,7 +9,7 @@ def expandPortPin(partNumber, pin):
 
     series = partNumber[:6]
     if not series == "SAMD21":
-        raise Exception("getNumPins() called on an unknown series")
+        raise Exception("expandPortPin() called on an unknown series")
 
     functionDict = {
             "PA00" : ["EXTINT0", "SERCOM1_PAD0", "TCC2_WO0"],
@@ -76,123 +76,438 @@ def getPinout(partNumber):
     expandPortPin().
     """
 
-    pinouts = { "SAMD21E" :
-                    None, # TODO: Finish
-                "SAMD21G" :
-                    None, # TODO: Finish
-                "SAMD21J" :
+    series = partNumber[:6]
+    if not series == "SAMD21":
+        raise Exception("getPinout() called on an unknown series")
+
+    package = getPackage(partNumber)
+    briefPackage = package[-2:] + '-'
+
+    if "TQFP" in package or "QFN" in package:
+        briefPackage += "quad"
+    else:
+        briefPackage += "grid"
+    
+    pinouts = { "32-quad" :
+                  {
+                      "1" : "PA00",
+                      "2" : "PA01",
+                      "3" : "PA02",
+                      "4" : "PA03",
+                      "5" : "PA04",
+                      "6" : "PA05",
+                      "7" : "PA06",
+                      "8" : "PA07",
+                      "9" : "VDDANA",
+                      "10" : "GND",
+                      "11" : "PA08",
+                      "12" : "PA09",
+                      "13" : "PA10",
+                      "14" : "PA11",
+                      "15" : "PA14",
+                      "16" : "PA15",
+                      "17" : "PA16",
+                      "18" : "PA17",
+                      "19" : "PA18",
+                      "20" : "PA19",
+                      "21" : "PA22",
+                      "22" : "PA23",
+                      "23" : "PA24",
+                      "24" : "PA25",
+                      "25" : "PA27",
+                      "26" : "~RESET~",
+                      "27" : "PA28",
+                      "28" : "GND",
+                      "29" : "VDDCORE",
+                      "30" : "VDDIN",
+                      "31" : "PA30",
+                      "32" : "PA31",
+                  },
+                "32-grid" :
+                  {
+                      "A1" : "PA00",
+                      "A2" : "PA01",
+                      "A3" : "GNDANA",
+                      "A4" : "VDDANA",
+                      "A5" : "PA06",
+                      "A6" : "VDDIO",
+                      "B1" : "PA30",
+                      "B2" : "PA31",
+                      "B3" : "PA02",
+                      "B4" : "PA04",
+                      "B5" : "PA07",
+                      # B6 is key
+                      "C1" : "VDDCORE",
+                      "C2" : "VDDIN",
+                      "C3" : "PA03",
+                      "C4" : "PA05",
+                      "C5" : "PA08",
+                      "C6" : "PA10",
+                      "D1" : "GND",
+                      "D2" : "PA28",
+                      "D3" : "GND",
+                      "D4" : "PA11",
+                      "D5" : "PA09",
+                      "D6" : "GND",
+                      "E1" : "~RESET~",
+                      "E2" : "PA27",
+                      "E3" : "PA22",
+                      "E4" : "PA17",
+                      "E5" : "PA16",
+                      "E6" : "PA14",
+                      "F1" : "PA25",
+                      "F2" : "PA24",
+                      "F3" : "PA23",
+                      "F4" : "PA19",
+                      "F5" : "PA18",
+                      "F6" : "PA15",
+                  },
+                "48-quad" :
+                  {
+                      "1" : "PA00",
+                      "2" : "PA01",
+                      "3" : "PA02",
+                      "4" : "PA03",
+                      "5" : "GNDANA",
+                      "6" : "VDDANA",
+                      "7" : "PB08",
+                      "8" : "PB09",
+                      "9" : "PA04",
+                      "10" : "PA05",
+                      "11" : "PA06",
+                      "12" : "PA07",
+                      "13" : "PA08",
+                      "14" : "PA09",
+                      "15" : "PA10",
+                      "16" : "PA11",
+                      "17" : "VDDIO",
+                      "18" : "GND",
+                      "19" : "PB10",
+                      "20" : "PB11",
+                      "21" : "PA12",
+                      "22" : "PA13",
+                      "23" : "PA14",
+                      "24" : "PA15",
+                      "25" : "PA16",
+                      "26" : "PA17",
+                      "27" : "PA18",
+                      "28" : "PA19",
+                      "29" : "PA20",
+                      "30" : "PA21",
+                      "31" : "PA22",
+                      "32" : "PA23",
+                      "33" : "PA24",
+                      "34" : "PA25",
+                      "35" : "GND",
+                      "36" : "VDDIO",
+                      "37" : "PB22",
+                      "38" : "PB23",
+                      "39" : "PA27",
+                      "40" : "~RESET~",
+                      "41" : "PA28",
+                      "42" : "GND",
+                      "43" : "VDDCORE",
+                      "44" : "VDDIN",
+                      "45" : "PA30",
+                      "46" : "PA31",
+                      "47" : "PB02",
+                      "48" : "PB03",
+                  },
+                "48-grid" : # WLCSP45 package
+                  {
+                      "A2"  : "PA27",
+                      "A4"  : "PA28",
+                      "A6"  : "GND",
+                      "A8"  : "VDDCORE",
+                      "A10" : "VDDIN",
+                      "A12" : "PB02",
+                      "B1"  : "PA25",
+                      "B3"  : "VDDIO",
+                      "B5"  : "~RESET~",
+                      "B7"  : "PA30",
+                      "B9"  : "PA31",
+                      "B11" : "PB03",
+                      "B13" : "PA01",
+                      "C2"  : "PA24",
+                      "C4"  : "GND",
+                      "C6"  : "PA22",
+                      "C8"  : "PA03",
+                      "C10" : "PA02",
+                      "C12" : "PA00",
+                      "D1"  : "PA21",
+                      "D3"  : "PA23",
+                      "D5"  : "PA16",
+                      "D7"  : "PA12",
+                      "D9"  : "PB08",
+                      "D11" : "PB04",
+                      "D13" : "GNDANA",
+                      "E2"  : "PA20",
+                      "E4"  : "PA19",
+                      "E6"  : "PA09",
+                      "E8"  : "PA06",
+                      "E10" : "PB09",
+                      "E12" : "VDDANA",
+                      "F1"  : "PA18",
+                      "F3"  : "PA17",
+                      "F5"  : "PA13",
+                      "F7"  : "PA11",
+                      "F9"  : "PA08",
+                      "F11" : "PA05",
+                      "F13" : "PA04",
+                      "G2"  : "PA15",
+                      "G4"  : "PA14",
+                      "G6"  : "GND",
+                      "G8"  : "VDDIO",
+                      "G10" : "PA10",
+                      "G12" : "PA07",
+                  },
+                "64-quad" :
+                  {
+                      "1" : "PA00",
+                      "2" : "PA01",
+                      "3" : "PA02",
+                      "4" : "PA03",
+                      "5" : "PB04",
+                      "6" : "PB05",
+                      "7" : "GNDANA",
+                      "8" : "VDDANA",
+                      "9" : "PB06",
+                      "10" : "PB07",
+                      "11" : "PB08",
+                      "12" : "PB09",
+                      "13" : "PA04",
+                      "14" : "PA05",
+                      "15" : "PA06",
+                      "16" : "PA07",
+                      "17" : "PA08",
+                      "18" : "PA09",
+                      "19" : "PA10",
+                      "20" : "PA11",
+                      "21" : "VDDIO",
+                      "22" : "GND",
+                      "23" : "PB10",
+                      "24" : "PB11",
+                      "25" : "PB12",
+                      "26" : "PB13",
+                      "27" : "PB14",
+                      "28" : "PB15",
+                      "29" : "PA12",
+                      "30" : "PA13",
+                      "31" : "PA14",
+                      "32" : "PA15",
+                      "33" : "GND",
+                      "34" : "VDDIO",
+                      "35" : "PA16",
+                      "36" : "PA17",
+                      "37" : "PA18",
+                      "38" : "PA19",
+                      "39" : "PB16",
+                      "40" : "PB17",
+                      "41" : "PA20",
+                      "42" : "PA21",
+                      "43" : "PA22",
+                      "44" : "PA23",
+                      "45" : "PA24",
+                      "46" : "PA25",
+                      "47" : "GND",
+                      "48" : "VDDIO",
+                      "49" : "PB22",
+                      "50" : "PB23",
+                      "51" : "PA27",
+                      "52" : "~RESET~",
+                      "53" : "PA28",
+                      "54" : "GND",
+                      "55" : "VDDCORE",
+                      "56" : "VDDIN",
+                      "57" : "PA30",
+                      "58" : "PA31",
+                      "59" : "PB30",
+                      "60" : "PB31",
+                      "61" : "PB00",
+                      "62" : "PB01",
+                      "63" : "PB02",
+                      "64" : "PB03",
+                    },
+                "64-grid" :
                     {
-                        "1" : "PA00",
-                        "2" : "PA01",
-                        "3" : "PA02",
-                        "4" : "PA03",
-                        "5" : "PB04",
-                        "6" : "PB05",
-                        "7" : "GNDANA",
-                        "8" : "VDDANA",
-                        "9" : "PB06",
-                        "10" : "PB07",
-                        "11" : "PB08",
-                        "12" : "PB09",
-                        "13" : "PA04",
-                        "14" : "PA05",
-                        "15" : "PA06",
-                        "16" : "PA07",
-                        "17" : "PA08",
-                        "18" : "PA09",
-                        "19" : "PA10",
-                        "20" : "PA11",
-                        "21" : "VDDIO",
-                        "22" : "GND",
-                        "23" : "PB10",
-                        "24" : "PB11",
-                        "25" : "PB12",
-                        "26" : "PB13",
-                        "27" : "PB14",
-                        "28" : "PB15",
-                        "29" : "PA12",
-                        "30" : "PA13",
-                        "31" : "PA14",
-                        "32" : "PA15",
-                        "33" : "GND",
-                        "34" : "VDDIO",
-                        "35" : "PA16",
-                        "36" : "PA17",
-                        "37" : "PA18",
-                        "38" : "PA19",
-                        "39" : "PB16",
-                        "40" : "PB17",
-                        "41" : "PA20",
-                        "42" : "PA21",
-                        "43" : "PA22",
-                        "44" : "PA23",
-                        "45" : "PA24",
-                        "46" : "PA25",
-                        "47" : "GND",
-                        "48" : "VDDIO",
-                        "49" : "PB22",
-                        "50" : "PB23",
-                        "51" : "PA27",
-                        "52" : "~RESET~",
-                        "53" : "PA28",
-                        "54" : "GND",
-                        "55" : "VDDCORE",
-                        "56" : "VDDIN",
-                        "57" : "PA30",
-                        "58" : "PA31",
-                        "59" : "PB30",
-                        "60" : "PB31",
-                        "61" : "PB00",
-                        "62" : "PB01",
-                        "63" : "PB02",
-                        "64" : "PB03",
-                    }
+                      "A1" : "PB02",
+                      "A2" : "PB01",
+                      "A3" : "VDDIN",
+                      "A4" : "VDDCORE",
+                      "A5" : "GND",
+                      "A6" : "PA28",
+                      "A7" : "PB23",
+                      "A8" : "PB22",
+                      "B1" : "PA00",
+                      "B2" : "PB00",
+                      "B3" : "PB31",
+                      "B4" : "PA31",
+                      "B5" : "PA30",
+                      "B6" : "~RESET~",
+                      "B7" : "PA27",
+                      "B8" : "VDDIO",
+                      "C1" : "PA01",
+                      "C2" : "PB03",
+                      "C3" : "PA02",
+                      "C4" : "PB30",
+                      "C5" : "PA21",
+                      "C6" : "PA22",
+                      "C7" : "PA23",
+                      "C8" : "GND",
+                      "D1" : "GNDANA",
+                      "D2" : "PB04",
+                      "D3" : "PA03",
+                      "D4" : "PB05",
+                      "D5" : "PB17",
+                      "D6" : "PA20",
+                      "D7" : "PB16",
+                      "D8" : "PA25",
+                      "E1" : "VDDANA",
+                      "E2" : "PB08",
+                      "E3" : "PB07",
+                      "E4" : "PB06",
+                      "E5" : "PB11",
+                      "E6" : "PB15",
+                      "E7" : "PA19",
+                      "E8" : "PA24",
+                      "F1" : "PA04",
+                      "F2" : "PA05",
+                      "F3" : "PA10",
+                      "F4" : "PB09",
+                      "F5" : "PB12",
+                      "F6" : "PA12",
+                      "F7" : "PA18",
+                      "F8" : "PA17",
+                      "G1" : "PA07",
+                      "G2" : "PA06",
+                      "G3" : "PA11",
+                      "G4" : "PB10",
+                      "G5" : "PB13",
+                      "G6" : "PA13",
+                      "G7" : "PA17",
+                      "G8" : "VDDIO",
+                      "H1" : "PA08",
+                      "H2" : "PA09",
+                      "H3" : "VDDIO",
+                      "H4" : "GND",
+                      "H5" : "PB14",
+                      "H6" : "PA14",
+                      "H7" : "PA15",
+                      "H8" : "GND",
+                    },
               }
-    return pinouts[partNumber[:7]]
+    return pinouts[briefPackage]
+
+def canAlias(partNumber1, partNumber2):
+    "Returns True iff partNumber1 and partNumber2 have same schematic symbols."
+
+    series1, series2 = partNumber1[:6], partNumber2[:6]
+    if series1 != "SAMD21" or series2 != "SAMD21":
+        raise Exception("canAlias() called on an unknown series")
+
+    #                     Flash Size                 Temp Grade   Carrier
+    mask = partNumber1[:7] + ".." + partNumber1[9:12] + "."     +   "T?"
+
+    if re.search(mask, partNumber2):
+        return True
+
+    return False
 
 def knownSamParts():
-    "Generator yields all Atmel SAM parts we can generate symbols for"
-    families = ["D"]
+    "Returns a list of all Atmel SAM parts we can generate symbols for"
 
-    serieses = { "D" : ["D21"] }
+    # This is just copy-paste-regex'ed from the datasheet - tried the
+    # algorithmic way, but exceptions started looking tedious.
+    out = [
+            "SAMD21E15A-AU", "SAMD21E15A-AUT", 
+            "SAMD21E15A-AF", "SAMD21E15A-AFT", 
+            "SAMD21E15A-MU", "SAMD21E15A-MUT", 
+            "SAMD21E15A-MF", "SAMD21E15A-MFT", 
+            "SAMD21E16A-AU", "SAMD21E16A-AUT", 
+            "SAMD21E16A-AF", "SAMD21E16A-AFT", 
+            "SAMD21E16A-MU", "SAMD21E16A-MUT", 
+            "SAMD21E16A-MF", "SAMD21E16A-MFT", 
+            "SAMD21E17A-AU", "SAMD21E17A-AUT", 
+            "SAMD21E17A-AF", "SAMD21E17A-AFT", 
+            "SAMD21E17A-MU", "SAMD21E17A-MUT", 
+            "SAMD21E17A-MF", "SAMD21E17A-MFT", 
+            "SAMD21E18A-AU", "SAMD21E18A-AUT", 
+            "SAMD21E18A-AF", "SAMD21E18A-AFT", 
+            "SAMD21E18A-MU", "SAMD21E18A-MUT", 
+            "SAMD21E18A-MF", "SAMD21E18A-MFT", 
+            "SAMD21E15B-AU", "SAMD21E15B-AUT", 
+            "SAMD21E15B-AF", "SAMD21E15B-AFT", 
+            "SAMD21E15B-MU", "SAMD21E15B-MUT", 
+            "SAMD21E15B-MF", "SAMD21E15B-MFT", 
+            "SAMD21E16B-AU", "SAMD21E16B-AUT", 
+            "SAMD21E16B-AF", "SAMD21E16B-AFT", 
+            "SAMD21E16B-MU", "SAMD21E16B-MUT", 
+            "SAMD21E16B-MF", "SAMD21E16B-MFT", 
+                             "SAMD21E16B-UUT", 
+            "SAMD21G15A-AU", "SAMD21G15A-AUT", 
+            "SAMD21G15A-AF", "SAMD21G15A-AFT", 
+            "SAMD21G15A-MU", "SAMD21G15A-MUT", 
+            "SAMD21G15A-MF", "SAMD21G15A-MFT", 
+            "SAMD21G16A-AU", "SAMD21G16A-AUT", 
+            "SAMD21G16A-AF", "SAMD21G16A-AFT", 
+            "SAMD21G16A-MU", "SAMD21G16A-MUT", 
+            "SAMD21G16A-MF", "SAMD21G16A-MFT", 
+            "SAMD21G17A-AU", "SAMD21G17A-AUT", 
+            "SAMD21G17A-AF", "SAMD21G17A-AFT", 
+            "SAMD21G17A-MU", "SAMD21G17A-MUT", 
+            "SAMD21G17A-MF", "SAMD21G17A-MFT", 
+                             "SAMD21G17A-UUT", 
+            "SAMD21G18A-AU", "SAMD21G18A-AUT", 
+            "SAMD21G18A-AF", "SAMD21G18A-AFT", 
+            "SAMD21G18A-MU", "SAMD21G18A-MUT", 
+            "SAMD21G18A-MF", "SAMD21G18A-MFT", 
+                             "SAMD21G18A-UUT", 
+            "SAMD21G15B-AU", "SAMD21G15B-AUT", 
+            "SAMD21G15B-AF", "SAMD21G15B-AFT", 
+            "SAMD21G15B-MU", "SAMD21G15B-MUT", 
+            "SAMD21G15B-MF", "SAMD21G15B-MFT", 
+            "SAMD21G16B-AU", "SAMD21G16B-AUT", 
+            "SAMD21G16B-AF", "SAMD21G16B-AFT", 
+            "SAMD21G16B-MU", "SAMD21G16B-MUT", 
+            "SAMD21G16B-MF", "SAMD21G16B-MFT", 
+            "SAMD21J15A-AU", "SAMD21J15A-AUT", 
+            "SAMD21J15A-AF", "SAMD21J15A-AFT", 
+            "SAMD21J15A-MU", "SAMD21J15A-MUT", 
+            "SAMD21J15A-MF", "SAMD21J15A-MFT", 
+            "SAMD21J16A-AU", "SAMD21J16A-AUT", 
+            "SAMD21J16A-AF", "SAMD21J16A-AFT", 
+            "SAMD21J16A-MU", "SAMD21J16A-MUT", 
+            "SAMD21J16A-MF", "SAMD21J16A-MFT", 
+            "SAMD21J16A-CU", "SAMD21J16A-CUT", 
+            "SAMD21J17A-AU", "SAMD21J17A-AUT", 
+            "SAMD21J17A-AF", "SAMD21J17A-AFT", 
+            "SAMD21J17A-MU", "SAMD21J17A-MUT", 
+            "SAMD21J17A-MF", "SAMD21J17A-MFT", 
+            "SAMD21J17A-CU", "SAMD21J17A-CUT", 
+            "SAMD21J18A-AU", "SAMD21J18A-AUT", 
+            "SAMD21J18A-AF", "SAMD21J18A-AFT", 
+            "SAMD21J18A-MU", "SAMD21J18A-MUT", 
+            "SAMD21J18A-MF", "SAMD21J18A-MFT", 
+            "SAMD21J18A-CU", "SAMD21J18A-CUT", 
+            "SAMD21J15B-AU", "SAMD21J15B-AUT", 
+            "SAMD21J15B-AF", "SAMD21J15B-AFT", 
+            "SAMD21J15B-MU", "SAMD21J15B-MUT", 
+            "SAMD21J15B-MF", "SAMD21J15B-MFT", 
+            "SAMD21J16B-AU", "SAMD21J16B-AUT", 
+            "SAMD21J16B-AF", "SAMD21J16B-AFT", 
+            "SAMD21J16B-MU", "SAMD21J16B-MUT", 
+            "SAMD21J16B-MF", "SAMD21J16B-MFT", 
+            "SAMD21J16B-CU", "SAMD21J16B-CUT",             
+            ]
 
-    pinCounts = { "D21" : ["E", "G", "J"] }
-
-    flashSizes = { "D21" : ["15", "16", "17", "18"] }
-
-    variants = { "D21" : ["A", "B"] }
-
-    packages = { "D21" : ["A", "M", "U", "C"] }
-
-    grades = { "D21" : ["U", "F"] }
-
-    carriers = { "D21" : ["", "T"] }
-
-    # TODO: Several combinations of variant/package/flash size/etc aren't
-    #       listed in the datasheet.  Is it easier to just list the ones
-    #       that do exist?
-    for family in families:
-        for series in serieses[family]:
-            for pinCount in pinCounts[series]:
-                for flashSize in flashSizes[series]:
-                    for variant in variants[series]:
-                        for package in packages[series]:
-                            if pinCount == "J": # J pin count is "64 pin"
-                                if package == "U": # U package is WLCSP
-                                    continue
-                            else:
-                                if package == "C": # C package is UFBGA
-                                    continue
-                            for grade in grades[series]:
-                                for carrier in carriers[series]:
-                                    yield "SAM" + series + pinCount + flashSize + variant + "-" + package + grade + carrier
+    return out
 
 def getPackage(partNumber):
     "Returns package as a string, for partNumber"
 
     series = partNumber[:6]
     if not series == "SAMD21":
-        raise Exception("getNumPins() called on an unknown series")
+        raise Exception("getPackage() called on an unknown series")
 
     pinCode, packageCode = partNumber[6], partNumber[11]
 
@@ -211,8 +526,124 @@ def getPackage(partNumber):
 
     return packageName + numPinsStr
 
-def outputLibSymbol(partNumber, aliases=None):
-    "Generates the .lib description for partNumber"
+def getFlashString(partNumber):
+    "Returns Flash storage size as a string in specified part eg '256KB'"
+    series = partNumber[:6]
+    if not series == "SAMD21":
+        raise Exception("getFlashString() called on an unknown series")
+
+    memCode = partNumber[7:9]
+    return {
+            "18" : "256KB",
+            "17" : "128KB",
+            "16" : "64KB",
+            "15" : "32KB",
+            } [memCode]
+
+def getRamString(partNumber):
+    "Returns amount of SRAM available in specified part eg '32KB'"
+    series = partNumber[:6]
+    if not series == "SAMD21":
+        raise Exception("getRamString() called on an unknown series")
+
+    memCode = partNumber[7:9]
+    return {
+            "18" : "32KB",
+            "17" : "16KB",
+            "16" : "8KB",
+            "15" : "4KB",
+            } [memCode]
+
+def getSpeedString(partNumber):
+    "Returns max CPU speed for specified part eg '48MHz'"
+    series = partNumber[:6]
+    if not series == "SAMD21":
+        raise Exception("getSpeedString() called on an unknown series")
+
+    return "48MHz"
+
+def getArmFamilyString(partNumber):
+    "Returns ARM family name for specified part eg 'CortexM0+'"
+    series = partNumber[:6]
+    if not series == "SAMD21":
+        raise Exception("getArmFamilyString() called on an unknown series")
+
+    return "CortexM0+"
+
+def getPackagingString(partNumber):
+    "Returns 'Tape and Reel' or 'Tray' depending on packaging of partNumber"
+    series = partNumber[:6]
+    if not series == "SAMD21":
+        raise Exception("getPackagingString() called on an unknown series")
+
+    if partNumber[-1] == "T":
+        return "Tape and Reel"
+    else:
+        return "Tray"
+
+def getOverviewString(partNumber):
+    "Returns a high level description of partNumber for the .dcm file"
+    series = partNumber[:6]
+    if not series == "SAMD21":
+        raise Exception("getOverviewString() called on an unknown series")
+
+    return "ARM 32bit Microcontroller 48MHz CortexM0+"
+
+def getDatasheetUrlString(partNumber):
+    "Returns URL to download datasheet for partNumber"
+    series = partNumber[:6]
+    if not series == "SAMD21":
+        raise Exception("getDatasheetUrlString() called on an unknown series")
+
+    return "http://www.atmel.com/images/atmel-42181-sam-d21_datasheet.pdf"
+
+def arrangePins(partNumber):
+    "Make lists of (pin number, description) tuples for L and R of symbol"
+    pins = getPinout(partNumber)
+
+    # Build lists of (pin number, pin name) tuples for pins that go
+    # on the left or right of the symbol.
+    leftSide = []
+    rightSide = []
+
+    # Right side is IO, left is everything else (mainly power)
+    isPort = re.compile(r"P[A-Z][0-9]{2}")
+    for number in pins:
+        if isPort.match(pins[number]):
+            rightSide.append( (number, pins[number]) )
+        else:
+            leftSide.append( (number, pins[number]) )
+
+    # Sort left pins roughly by function; misc, power, ground
+    leftNotPower = []
+    leftPower = []
+    leftGround = []
+    for item in leftSide:
+        if "VDD" in item[1]:
+            leftPower.append(item)
+        elif "GND" in item[1]:
+            leftGround.append(item)
+        else:
+            leftNotPower.append(item)
+
+    leftSorted = sorted(leftNotPower, key = lambda x: x[1])
+    leftSorted += [None]    # Put a gap between groups
+    leftSorted += sorted(leftPower, key = lambda x: x[1])
+    leftSorted += [None]
+    leftSorted += sorted(leftGround, key = lambda x: x[1])
+
+    # Sort pins by port name (eg PA02, PA03...) rather than pin number
+    rightSide = sorted(rightSide, key = lambda x: x[1])
+    rightExpanded = []
+    for pin in rightSide:
+        # Eeschema can't handle spaces in pin names, so join with slashes.
+        expanded = "/".join(expandPortPin(partNumber, pin[1]) + [pin[1]])
+        rightExpanded.append( (pin[0], expanded) )
+
+    return leftSorted, rightExpanded
+
+def outputLibSymbol(partNumber, aliases):
+    "Generates the .lib description for partNumber, with aliases"
 
     # From Kicad Library Conventions
     # https://github.com/KiCad/kicad-library/wiki/Kicad-Library-Convention
@@ -264,6 +695,9 @@ def outputLibSymbol(partNumber, aliases=None):
            (width / 2, fieldTextY)
     out += 'F3 "" 0 0 50 H V C CNN\n'
 
+    if len(aliases) > 0:
+        out += "ALIAS " + " ".join(aliases) + "\n"
+
     # Start drawing with the bounding box around the chip
     boxBottom = top - grid * max(len(leftPins), len(rightPins))
     out += "DRAW\n"
@@ -304,52 +738,53 @@ def outputLibSymbol(partNumber, aliases=None):
 
     return out
 
-def arrangePins(partNumber):
-    "Make lists of (pin number, description) tuples for L and R of symbol"
-    pins = getPinout(partNumber)
+def outputDcm(partNumber):
+    "Returns section of an Eeschema .dcm file for partNumber"
+    out = "#\n"
+    out += "$CMP " + partNumber + "\n"
 
-    # Build lists of (pin number, pin name) tuples for pins that go
-    # on the left or right of the symbol.
-    leftSide = []
-    rightSide = []
+    brief = [
+            getPackage(partNumber),
+            getFlashString(partNumber) + " Flash",
+            getRamString(partNumber) + " RAM",
+            getSpeedString(partNumber),
+            getArmFamilyString(partNumber),
+            getPackagingString(partNumber),
+            ]
+    out += "D " + ", ".join(brief) + "\n"
+    out += "K " + getOverviewString(partNumber) + "\n"
+    out += "F " + getDatasheetUrlString(partNumber) + "\n"
+    out += "$ENDCMP\n"
+    return out
 
-    # Right side is IO, left is everything else (mainly power)
-    isPort = re.compile(r"P[A-Z][0-9]{2}")
-    for number in pins:
-        if isPort.match(pins[number]):
-            rightSide.append( (number, pins[number]) )
-        else:
-            leftSide.append( (number, pins[number]) )
+def assembleAliases(allParts):
+    "Constructs a list of lists, where members of each sublist are aliasable"
+    outList = []
 
-    # Sort left pins roughly by function; misc, power, ground
-    leftNotPower = []
-    leftPower = []
-    leftGround = []
-    for item in leftSide:
-        if "VDD" in item[1]:
-            leftPower.append(item)
-        elif "GND" in item[1]:
-            leftGround.append(item)
-        else:
-            leftNotPower.append(item)
+    for newPart in allParts:
+        aliased = False
+        for possibleAlias in outList:
+            if canAlias(newPart, possibleAlias[0]):
+                possibleAlias.append(newPart)
+                aliased = True
+                break
 
-    leftSorted = sorted(leftNotPower, key = lambda x: x[1])
-    leftSorted += [None]    # Put a gap between groups
-    leftSorted += sorted(leftPower, key = lambda x: x[1])
-    leftSorted += [None]
-    leftSorted += sorted(leftGround, key = lambda x: x[1])
+        if not aliased:
+            outList.append([newPart])
 
-    # Sort pins by port name (eg PA02, PA03...) rather than pin number
-    rightSide = sorted(rightSide, key = lambda x: x[1])
-    rightExpanded = []
-    for pin in rightSide:
-        # Eeschema can't handle spaces in pin names, so join with slashes.
-        expanded = "/".join(expandPortPin(partNumber, pin[1]) + [pin[1]])
-        rightExpanded.append( (pin[0], expanded) )
-
-    return leftSorted, rightExpanded
+    return outList
 
 if __name__ == "__main__":
-    print(outputLibSymbol("SAMD21J18A-MF"))
-#    for partNumber in knownSamParts():
- #       print(partNumber)
+    
+    baseName = "test"
+
+    parts = assembleAliases(knownSamParts())
+
+    with open(baseName + ".lib", "wb") as outFile:
+        for aliases in parts:
+            outFile.write( outputLibSymbol(aliases[0], aliases[1:]).encode() )
+
+    with open(baseName + ".dcm", "wb") as outFile:
+        for aliases in parts:
+            for part in aliases:
+                outFile.write( outputDcm(part).encode() )
