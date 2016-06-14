@@ -178,10 +178,33 @@ class SamModel(object):
     
         return out.encode("UTF-8")
     
+    def getDatasheetUrlString(self):
+        "Returns URL to download datasheet"
+        return "http://www.atmel.com/images/atmel-42181-sam-d21_datasheet.pdf"
+
+    def getOverviewString(self):
+        "Returns a high level description for the .dcm file"
+        return "ARM 32bit Microcontroller 48MHz CortexM0+"
+
+    def getPackagingString(self):
+        "Returns 'Tape and Reel' or 'Tray' depending on packaging of partNumber"
+        if self.partNumber[-1] == "T":
+            return "Tape and Reel"
+        else:
+            return "Tray"
+
+    def getArmFamilyString(self):
+        "Returns ARM family name for specified part eg 'CortexM0+'"
+        return "CortexM0+"
+
+    def getSpeedString(self):
+        "Returns max CPU speed for specified part eg '48MHz'"
+        return "48MHz"
+
     def outputDcm(self):
         "Returns section of an Eeschema .dcm file as UTF-8 encoded bytearray"
 
-        partNumber = self.partNumber
+        partNumber = self.partNumber #TODO: Get rid of this
 
         out = "#\n"
         out += "$CMP " + partNumber + "\n"
@@ -190,13 +213,13 @@ class SamModel(object):
                 getPackage(partNumber),
                 getFlashString(partNumber) + " Flash",
                 getRamString(partNumber) + " RAM",
-                getSpeedString(partNumber),
-                getArmFamilyString(partNumber),
-                getPackagingString(partNumber),
+                self.getSpeedString(),
+                self.getArmFamilyString(),
+                self.getPackagingString(),
                 ]
         out += "D " + ", ".join(brief) + "\n"
-        out += "K " + getOverviewString(partNumber) + "\n"
-        out += "F " + getDatasheetUrlString(partNumber) + "\n"
+        out += "K " + self.getOverviewString() + "\n"
+        out += "F " + self.getDatasheetUrlString() + "\n"
         out += "$ENDCMP\n"
 
         return out.encode("UTF-8")
@@ -735,49 +758,6 @@ def getRamString(partNumber):
             "16" : "8KB",
             "15" : "4KB",
             } [memCode]
-
-def getSpeedString(partNumber):
-    "Returns max CPU speed for specified part eg '48MHz'"
-    series = partNumber[:6]
-    if not series == "SAMD21":
-        raise Exception("getSpeedString() called on an unknown series")
-
-    return "48MHz"
-
-def getArmFamilyString(partNumber):
-    "Returns ARM family name for specified part eg 'CortexM0+'"
-    series = partNumber[:6]
-    if not series == "SAMD21":
-        raise Exception("getArmFamilyString() called on an unknown series")
-
-    return "CortexM0+"
-
-def getPackagingString(partNumber):
-    "Returns 'Tape and Reel' or 'Tray' depending on packaging of partNumber"
-    series = partNumber[:6]
-    if not series == "SAMD21":
-        raise Exception("getPackagingString() called on an unknown series")
-
-    if partNumber[-1] == "T":
-        return "Tape and Reel"
-    else:
-        return "Tray"
-
-def getOverviewString(partNumber):
-    "Returns a high level description of partNumber for the .dcm file"
-    series = partNumber[:6]
-    if not series == "SAMD21":
-        raise Exception("getOverviewString() called on an unknown series")
-
-    return "ARM 32bit Microcontroller 48MHz CortexM0+"
-
-def getDatasheetUrlString(partNumber):
-    "Returns URL to download datasheet for partNumber"
-    series = partNumber[:6]
-    if not series == "SAMD21":
-        raise Exception("getDatasheetUrlString() called on an unknown series")
-
-    return "http://www.atmel.com/images/atmel-42181-sam-d21_datasheet.pdf"
 
 def assembleAliases(allParts):
     "Constructs a list of lists, where members of each sublist are aliasable"
